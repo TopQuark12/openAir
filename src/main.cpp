@@ -34,25 +34,20 @@ DynamicJsonDocument mqttMsgJson(1024);
 char mqttMsg[1024];
 
 void WiFiconnect() {
-
     Serial.print("Connecting to ");
     Serial.println(SSID);
-
     WiFi.begin(SSID, PASSWORD);
-
     unsigned long timeStart = millis();
 
     while (WiFi.status() != WL_CONNECTED && millis() - timeStart < WIFI_CONNECTION_TIMEOUT) {
         delay(500);
         Serial.print(".");
     }
-
     Serial.println();
 
-    if (WiFi.status() == WL_CONNECTED) {
-        
+    if (WiFi.status() == WL_CONNECTED) {        
         Serial.println("WiFi connected");
-        Serial.println("IP address: ");
+        Serial.print("IP address : ");
         Serial.println(WiFi.localIP());
     } else {
         Serial.println("Wifi connection timeout");
@@ -61,11 +56,8 @@ void WiFiconnect() {
 
 void MQTTconnect() {
     Serial.print("Attempting MQTT connection...");
-        // Attempt to connect
         if (client.connect(macAddr)) {
         Serial.println("connected");
-        // Subscribe
-        // client.subscribe("esp32/output");
     } else {
         Serial.print("failed, rc=");
         Serial.print(client.state());
@@ -73,11 +65,9 @@ void MQTTconnect() {
 }
 
 void setup() {
-
+    
     Serial.begin(9600);
-    while (!Serial) {
-        delay(100);
-    }
+    Serial.println();
 
     WiFiconnect();  
 
@@ -161,11 +151,12 @@ void loop() {
             mqttMsgJson["CO2"] = co2;
             mqttMsgJson["Temp"] = temperature;
             mqttMsgJson["Humi"] = humidity;
-
-            serializeJsonPretty(mqttMsgJson, mqttMsg);
-            Serial.println(mqttMsg);
-
-            client.publish("CO2/alexBedroom", mqttMsg);
         }
+
+        serializeJsonPretty(mqttMsgJson, mqttMsg);
+        Serial.println(mqttMsg);
+
+        client.publish("CO2/alexBedroom", mqttMsg);
+
     }
 }
