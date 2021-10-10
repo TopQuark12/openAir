@@ -3,6 +3,7 @@
 #include <Wire.h>
 #include <WiFi.h>
 #include <PubSubClient.h>
+#include <ArduinoJson.h>
 #include "cred.h"
 
 #define WIFI_CONNECTION_TIMEOUT     10000
@@ -28,6 +29,9 @@ char macAddr [18];
 
 uint16_t SCDerror;
 char SCDerrorMessage[256];
+
+DynamicJsonDocument mqttMsgJson(1024);
+char mqttMsg[1024];
 
 void WiFiconnect() {
 
@@ -111,16 +115,6 @@ void setup() {
         Serial.println(SCDerrorMessage);
     }
 
-    uint16_t serial0;
-    uint16_t serial1;
-    uint16_t serial2;
-    SCDerror = scd4x.getSerialNumber(serial0, serial1, serial2);
-    if (SCDerror) {
-        Serial.print("SCDError trying to execute getSerialNumber(): ");
-        errorToString(SCDerror, SCDerrorMessage, 256);
-        Serial.println(SCDerrorMessage);
-    }
-
     // Start Measurement
     SCDerror = scd4x.startPeriodicMeasurement();
     if (SCDerror) {
@@ -164,27 +158,14 @@ void loop() {
         } else if (co2 == 0) {
             Serial.println("Invalid sample detected, skipping.");
         } else {
-            String jsonStr;
-            jsonStr.concat("{\n");
+            mqttMsgJson["CO2"] = co2;
+            mqttMsgJson["Temp"] = temperature;
+            mqttMsgJson["Humi"] = humidity;
 
-            jsonStr.concat("\t\"CO2\":");
-            jsonStr.concat(co2);
-            jsonStr.concat(",\n");
+            serializeJsonPretty(mqttMsgJson, mqttMsg);
+            Serial.println(mqttMsg);
 
-            jsonStr.concat("\t\"Temp\":");
-            jsonStr.concat(temperature);
-            jsonStr.concat(",\n");
-
-            jsonStr.concat("\t\"Humi\":");
-            jsonStr.concat(humidity);
-
-            jsonStr.concat("\n}");
-
-            Serial.println(jsonStr);
-            
-            char msg[100];
-            jsonStr.toCharArray(msg, 100);
-            client.publish("CO2/alexBedroom", msg);
+            client.publish("CO2/alexBedroom", mqttMsg);
         }
     }
 }
