@@ -5,71 +5,65 @@
 #include <PubSubClient.h>
 #include "cred.h"
 
-#define SDA_PIN             21
-#define SCL_PIN             22
+#define WIFI_CONNECTION_TIMEOUT     10000
+#define SENSOR_SAMPLING_PERIOD      20000   // Must be greater than 5000
+#define SDA_PIN                     21
+#define SCL_PIN                     22
 
-
-char ssid[] = SSID;
-char password[] = PASSWORD;
-
-const char* mqtt_server = "alexwong.duckdns.org";
+#ifndef SSID
+    #define SSID            "WIFI SSID HERE"
+#endif
+#ifndef PASSWORD        
+    #define PASSWORD        "WIFI PASSWORD HERE"
+#endif
+#ifndef MQTT_SERVER
+    #define MQTT_SERVER     "MQTT SERVER ADDRESS HERE"
+#endif
 
 SensirionI2CScd4x scd4x;
 
 WiFiClient espClient;
 PubSubClient client(espClient);
 
-void printUint16Hex(uint16_t value) {
-    Serial.print(value < 4096 ? "0" : "");
-    Serial.print(value < 256 ? "0" : "");
-    Serial.print(value < 16 ? "0" : "");
-    Serial.print(value, HEX);
-}
+uint16_t SCDerror;
+char SCDerrorMessage[256];
 
-void printSerialNumber(uint16_t serial0, uint16_t serial1, uint16_t serial2) {
-    Serial.print("Serial: 0x");
-    printUint16Hex(serial0);
-    printUint16Hex(serial1);
-    printUint16Hex(serial2);
-    Serial.println();
-}
+void WiFiconnect() {
 
-void setup_wifi() {
-    delay(10);
-    // We start by connecting to a WiFi network
-    Serial.println();
     Serial.print("Connecting to ");
-    Serial.println(ssid);
+    Serial.println(SSID);
 
-    WiFi.begin(ssid, password);
+    WiFi.begin(SSID, PASSWORD);
 
-    while (WiFi.status() != WL_CONNECTED) {
+    unsigned long timeStart = millis();
+
+    while (WiFi.status() != WL_CONNECTED && millis() - timeStart < WIFI_CONNECTION_TIMEOUT) {
         delay(500);
         Serial.print(".");
     }
 
-    Serial.println("");
-    Serial.println("WiFi connected");
-    Serial.println("IP address: ");
-    Serial.println(WiFi.localIP());
+    Serial.println();
+
+    if (WiFi.status() == WL_CONNECTED) {
+        
+        Serial.println("WiFi connected");
+        Serial.println("IP address: ");
+        Serial.println(WiFi.localIP());
+    } else {
+        Serial.println("Wifi connection timeout");
+    }
 }
 
-void reconnect() {
-  // Loop until we're reconnected
-    while (!client.connected()) {
-        Serial.print("Attempting MQTT connection...");
+void MQTTconnect() {
+    Serial.print("Attempting MQTT connection...");
         // Attempt to connect
-        if (client.connect("ESP8266Client")) {
+        if (client.connect("ESP32Client")) {
         Serial.println("connected");
         // Subscribe
-        client.subscribe("esp32/output");
-        } else {
+        // client.subscribe("esp32/output");
+    } else {
         Serial.print("failed, rc=");
         Serial.print(client.state());
-        Serial.println(" try again in 5 seconds");
-        // Wait 5 seconds before retrying
-        delay(5000);
-        }
     }
 }
 
@@ -80,71 +74,72 @@ void setup() {
         delay(100);
     }
 
-    Wire.begin(SDA_PIN, SCL_PIN);
+    WiFiconnect();
+    client.setServer(MQTT_SERVER, 1883);
+    MQTTconnect();
 
-    uint16_t error;
-    char errorMessage[256];
+    Wire.begin(SDA_PIN, SCL_PIN);    
 
     scd4x.begin(Wire);
 
     // stop potentially previously started measurement
-    error = scd4x.stopPeriodicMeasurement();
-    if (error) {
-        Serial.print("Error trying to execute stopPeriodicMeasurement(): ");
-        errorToString(error, errorMessage, 256);
-        Serial.println(errorMessage);
+    SCDerror = scd4x.stopPeriodicMeasurement();
+    if (SCDerror) {
+        Serial.print("SCDError trying to execute stopPeriodicMeasurement(): ");
+        errorToString(SCDerror, SCDerrorMessage, 256);
+        Serial.println(SCDerrorMessage);
     }
 
     uint16_t serial0;
     uint16_t serial1;
     uint16_t serial2;
-    error = scd4x.getSerialNumber(serial0, serial1, serial2);
-    if (error) {
-        Serial.print("Error trying to execute getSerialNumber(): ");
-        errorToString(error, errorMessage, 256);
-        Serial.println(errorMessage);
-    } else {
-        printSerialNumber(serial0, serial1, serial2);
+    SCDerror = scd4x.getSerialNumber(serial0, serial1, serial2);
+    if (SCDerror) {
+        Serial.print("SCDError trying to execute getSerialNumber(): ");
+        errorToString(SCDerror, SCDerrorMessage, 256);
+        Serial.println(SCDerrorMessage);
     }
 
     // Start Measurement
-    error = scd4x.startPeriodicMeasurement();
-    if (error) {
-        Serial.print("Error trying to execute startPeriodicMeasurement(): ");
-        errorToString(error, errorMessage, 256);
-        Serial.println(errorMessage);
+    SCDerror = scd4x.startPeriodicMeasurement();
+    if (SCDerror) {
+        Serial.print("SCDError trying to execute startPeriodicMeasurement(): ");
+        errorToString(SCDerror, SCDerrorMessage, 256);
+        Serial.println(SCDerrorMessage);
     }
 
     Serial.println("Waiting for first measurement... (5 sec)");
-
-    setup_wifi();
-    client.setServer(mqtt_server, 1883);
+    delay(5000);
 }
 
 
 long lastMsg = 0;
 void loop() {
-    uint16_t error;
-    char errorMessage[256];
+    
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("Reconnecting to wifi...");
+        WiFiconnect();
+    }
 
     if (!client.connected()) {
-        reconnect();
+        Serial.println("Reconnecting to MQTT server...");
+        MQTTconnect();
     }
     client.loop();
 
     long now = millis();
-    if (now - lastMsg > 5000) {
+    if (now - lastMsg > SENSOR_SAMPLING_PERIOD) {
         lastMsg = now;
 
         // Read Measurement
         uint16_t co2;
         float temperature;
         float humidity;
-        error = scd4x.readMeasurement(co2, temperature, humidity);
-        if (error) {
-            Serial.print("Error trying to execute readMeasurement(): ");
-            errorToString(error, errorMessage, 256);
-            Serial.println(errorMessage);
+        SCDerror = scd4x.readMeasurement(co2, temperature, humidity);
+        if (SCDerror) {
+            Serial.print("SCDError trying to execute readMeasurement(): ");
+            errorToString(SCDerror, SCDerrorMessage, 256);
+            Serial.println(SCDerrorMessage);
         } else if (co2 == 0) {
             Serial.println("Invalid sample detected, skipping.");
         } else {
