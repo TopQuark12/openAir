@@ -24,6 +24,7 @@ SensirionI2CScd4x scd4x;
 
 WiFiClient espClient;
 PubSubClient client(espClient);
+char macAddr [18];
 
 uint16_t SCDerror;
 char SCDerrorMessage[256];
@@ -57,7 +58,7 @@ void WiFiconnect() {
 void MQTTconnect() {
     Serial.print("Attempting MQTT connection...");
         // Attempt to connect
-        if (client.connect("ESP32Client")) {
+        if (client.connect(macAddr)) {
         Serial.println("connected");
         // Subscribe
         // client.subscribe("esp32/output");
@@ -74,7 +75,27 @@ void setup() {
         delay(100);
     }
 
-    WiFiconnect();
+    WiFiconnect();  
+
+    byte mac[6];  
+    String macStr;
+    WiFi.macAddress(mac);    
+
+    macStr.concat(String(mac[5], HEX));
+    macStr.concat(':');
+    macStr.concat(String(mac[4], HEX));
+    macStr.concat(':');
+    macStr.concat(String(mac[3], HEX));
+    macStr.concat(':');
+    macStr.concat(String(mac[2], HEX));
+    macStr.concat(':');
+    macStr.concat(String(mac[1], HEX));
+    macStr.concat(':');
+    macStr.concat(String(mac[0], HEX));
+    macStr.toCharArray(macAddr, 18);
+    Serial.print("Mac address : ");
+    Serial.println(macAddr);
+
     client.setServer(MQTT_SERVER, 1883);
     MQTTconnect();
 
@@ -108,7 +129,7 @@ void setup() {
         Serial.println(SCDerrorMessage);
     }
 
-    Serial.println("Waiting for first measurement... (5 sec)");
+    Serial.println("Waiting for first measurement...");
     delay(5000);
 }
 
