@@ -10,6 +10,7 @@
 #include <Fonts/FreeSansBold18pt7b.h>
 #include <Fonts/FreeSansBold9pt7b.h>
 #include <sps30.h>
+#include <Adafruit_SGP40.h>
 #include "main.h"
 #include "networking.h"
 #include "button.h"
@@ -26,15 +27,13 @@
 #endif
 
 SensirionI2CScd4x scd4x;
+Adafruit_SGP40 sgp;
 
 WiFiClient espClient;
 PubSubClient client(espClient);
 
 uint16_t SCDerror;
 char SCDerrorMessage[256];
-
-int16_t spsRet;
-
 
 DynamicJsonDocument mqttMsgJson(1024);
 char mqttMsg[1024];
@@ -49,7 +48,8 @@ datum_t datum [] = {
     {"Humi", "HUMI", "%RH", 1},
     {"PM10", "PM 1.0", "ug/m3", 1},
     {"PM25", "PM 2.5", "ug/m3", 1},
-    {"PM100", "PM 10", "ug/m3", 1}
+    {"PM100", "PM 10", "ug/m3", 1},
+    {"TVOC", "TVOC Index", " ", 0}
 };
 
 // Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, OLED_MOSI_PIN, OLED_CLK_PIN, OLED_DC_PIN, OLED_RESET_PIN, OLED_CS_PIN);
@@ -85,6 +85,8 @@ void setup() {
 
     Serial.print("SPS sensor probing successful\n");
 
+    int16_t spsRet;
+
     spsRet = sps30_set_fan_auto_cleaning_interval_days(SPS_AUTOCLEAN_DAYS);
     if (spsRet) {
         Serial.print("error setting the auto-clean interval: ");
@@ -111,6 +113,12 @@ void setup() {
         errorToString(SCDerror, SCDerrorMessage, 256);
         Serial.println(SCDerrorMessage);
     }
+
+    if (! sgp.begin()){
+        Serial.println("Sensor not found :(");
+        while (1);
+    }
+    Serial.println("Found SGP40");
 
     lastSampleTime = millis();
 
@@ -231,6 +239,11 @@ void loop() {
                 Serial.println("error reading SPS measurement");
             }
         }   
+
+        // Read SGP40
+        // uint16_t sraw = sgp.measureRaw(temperature, humidity);
+        int32_t voc_index = sgp.measureVocIndex(temperature, humidity);
+        mqttMsgJson["TVOC"] = voc_index;
         
         serializeJsonPretty(mqttMsgJson, mqttMsg);
         Serial.println(mqttMsg);
