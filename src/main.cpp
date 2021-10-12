@@ -7,21 +7,25 @@
 #include <SPI.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <Fonts/FreeSansBold18pt7b.h>
+#include <Fonts/FreeSansBold9pt7b.h>
 #include "cred.h"
 
 #define WIFI_CONNECTION_TIMEOUT     10000
 #define SENSOR_SAMPLING_PERIOD      20000   // Must be greater than 5000
+#define BUTTON_SAMPLING_PERIOD      100
 
 #define SCREEN_WIDTH                128 // OLED display width, in pixels
 #define SCREEN_HEIGHT               64 // OLED display height, in pixels
 
 #define SDA_PIN                     21
 #define SCL_PIN                     22
-#define OLED_MOSI                   23
-#define OLED_CLK                    18
-#define OLED_DC                     16
-#define OLED_CS                     5
-#define OLED_RESET                  17
+#define OLED_MOSI_PIN               23
+#define OLED_CLK_PIN                18
+#define OLED_DC_PIN                 16
+#define OLED_CS_PIN                 5
+#define OLED_RESET_PIN              17
+#define BUTTON_PIN                  4
 
 #ifndef SSID
     #define SSID            "WIFI SSID HERE"
@@ -45,7 +49,9 @@ char SCDerrorMessage[256];
 DynamicJsonDocument mqttMsgJson(1024);
 char mqttMsg[1024];
 
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, OLED_MOSI, OLED_CLK, OLED_DC, OLED_RESET, OLED_CS);
+unsigned long lastSampleTime = 0;
+
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, OLED_MOSI_PIN, OLED_CLK_PIN, OLED_DC_PIN, OLED_RESET_PIN, OLED_CS_PIN);
 
 void WiFiconnect() {
 
@@ -134,13 +140,39 @@ void setup() {
     display.clearDisplay();
     display.display(); 
 
-    display.setTextSize(3); // Draw 2X-scale text
+    display.setFont(&FreeSansBold18pt7b);
+    // display.setTextSize(3); // Draw 2X-scale text
     display.setTextColor(SSD1306_WHITE);
-    display.setCursor(28, 8);
+    display.setCursor(28, 24);
     display.println("pico");
-    display.setCursor(37, 32);
+    display.setCursor(37, 56);
     display.println("AIR");
     display.display();      // Show initial text
+    display.setFont();
+
+    Wire.begin(SDA_PIN, SCL_PIN);    
+
+    scd4x.begin(Wire);
+
+    // stop potentially previously started measurement
+    SCDerror = scd4x.stopPeriodicMeasurement();
+    if (SCDerror) {
+        Serial.print("SCDError trying to execute stopPeriodicMeasurement(): ");
+        errorToString(SCDerror, SCDerrorMessage, 256);
+        Serial.println(SCDerrorMessage);
+    }
+
+    // Start Measurement
+    SCDerror = scd4x.startPeriodicMeasurement();
+    if (SCDerror) {
+        Serial.print("SCDError trying to execute startPeriodicMeasurement(): ");
+        errorToString(SCDerror, SCDerrorMessage, 256);
+        Serial.println(SCDerrorMessage);
+    }
+
+    lastSampleTime = millis();
+
+    pinMode(BUTTON_PIN, INPUT);
 
     delay(2000);
     display.clearDisplay();
@@ -170,34 +202,15 @@ void setup() {
     client.setServer(MQTT_SERVER, 1883);
     MQTTconnect();
 
-    Wire.begin(SDA_PIN, SCL_PIN);    
-
-    scd4x.begin(Wire);
-
-    // stop potentially previously started measurement
-    SCDerror = scd4x.stopPeriodicMeasurement();
-    if (SCDerror) {
-        Serial.print("SCDError trying to execute stopPeriodicMeasurement(): ");
-        errorToString(SCDerror, SCDerrorMessage, 256);
-        Serial.println(SCDerrorMessage);
-    }
-
-    // Start Measurement
-    SCDerror = scd4x.startPeriodicMeasurement();
-    if (SCDerror) {
-        Serial.print("SCDError trying to execute startPeriodicMeasurement(): ");
-        errorToString(SCDerror, SCDerrorMessage, 256);
-        Serial.println(SCDerrorMessage);
-    }
-
-    Serial.println("Waiting for first measurement...");
-    delay(5000);
 }
 
 
-long lastMsg = 0;
 void loop() {
     
+    static unsigned long buttonHist = 0;
+    static unsigned long lastButtonSampleTime = 0;
+    static unsigned long now = 0;
+
     if (WiFi.status() != WL_CONNECTED) {
         Serial.println("Reconnecting to wifi...");
         WiFiconnect();
@@ -209,14 +222,22 @@ void loop() {
     }
     client.loop();
 
-    long now = millis();
-    if (now - lastMsg > SENSOR_SAMPLING_PERIOD) {
-        lastMsg = now;
+    now = millis();
+    if (now - lastButtonSampleTime > BUTTON_SAMPLING_PERIOD) {
+        lastButtonSampleTime = now;
+
+        buttonHist = buttonHist << 1 | (digitalRead(BUTTON_PIN) & 0x1);
+        Serial.println(buttonHist, BIN);
+    }
+
+    now = millis();
+    if (now - lastSampleTime > SENSOR_SAMPLING_PERIOD) {
+        lastSampleTime = now;
 
         // Read SCD41
-        uint16_t co2, co2Valid;
-        float temperature, temperatureValid;
-        float humidity, humidityValid;
+        uint16_t co2, co2Valid = 0;
+        float temperature, temperatureValid = 0;
+        float humidity, humidityValid = 0;
         SCDerror = scd4x.readMeasurement(co2, temperature, humidity);
         if (SCDerror) {
             Serial.print("SCDError trying to execute readMeasurement(): ");
