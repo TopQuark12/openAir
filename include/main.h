@@ -3,8 +3,8 @@
 #include <Adafruit_SSD1306.h>
 #include <PubSubClient.h>
 
-#define WIFI_CONNECTION_TIMEOUT     10000
-#define SENSOR_SAMPLING_PERIOD      20000   // Must be greater than 5000
+#define WIFI_CONNECTION_TIMEOUT     20000
+#define SENSOR_SAMPLING_PERIOD      5000   // Must be greater than 5000
 #define BUTTON_SAMPLING_PERIOD      100
 
 #define SCREEN_WIDTH                128 // OLED display width, in pixels

@@ -11,6 +11,8 @@
 #include <Fonts/FreeSansBold9pt7b.h>
 #include "main.h"
 #include "networking.h"
+#include "button.h"
+#include "dispMeas.h"
 
 #ifndef SSID
     #define SSID            "WIFI SSID HERE"
@@ -35,6 +37,12 @@ char mqttMsg[1024];
 
 unsigned long lastSampleTime = 0;
 
+datum_t datum [] = {
+    {"CO2", "CO2", "PPM", 0},
+    {"Temp", "TEMP", "°C", 1},
+    {"Humi", "HUMI", "%RH", 1}
+};
+
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, OLED_MOSI_PIN, OLED_CLK_PIN, OLED_DC_PIN, OLED_RESET_PIN, OLED_CS_PIN);
 
 void setup() {
@@ -49,9 +57,9 @@ void setup() {
     display.setFont(&FreeSansBold18pt7b);
     // display.setTextSize(3); // Draw 2X-scale text
     display.setTextColor(SSD1306_WHITE);
-    display.setCursor(28, 24);
+    display.setCursor(28, 25);
     display.println("pico");
-    display.setCursor(37, 56);
+    display.setCursor(37, 55);
     display.println("AIR");
     display.display();      // Show initial text
     display.setFont();
@@ -81,22 +89,19 @@ void setup() {
     pinMode(BUTTON_PIN, INPUT);
 
     delay(2000);
-    display.clearDisplay();
-    display.display();
 
     WiFiconnect();
     MQTTconnect();
 
-    delay(2000);
+    delay(1000);
 
     display.clearDisplay();
     display.setTextSize(1);
-    display.setCursor(0, 0);
+    display.setCursor(1, 1);
     display.println("Warming up sensors");
     display.display();
 
     unsigned long now = millis();
-    lastSampleTime = millis();
 
     while (now - lastSampleTime < SENSOR_SAMPLING_PERIOD) {
         now = millis();
@@ -107,7 +112,7 @@ void setup() {
 
 void loop() {
     
-    static unsigned long buttonHist = 0;
+    static unsigned long long buttonHist = 0;
     static unsigned long lastButtonSampleTime = 0;
     static unsigned long now = 0;
 
@@ -126,8 +131,26 @@ void loop() {
     if (now - lastButtonSampleTime > BUTTON_SAMPLING_PERIOD) {
         lastButtonSampleTime = now;
 
+        static int count = 0;
+
         buttonHist = buttonHist << 1 | (digitalRead(BUTTON_PIN) & 0x1);
-        Serial.println(buttonHist, BIN);
+        // Serial.println(buttonHist, BIN);
+        if (buttonIsHeld(buttonHist)) {
+            Serial.println("Button is held");
+            buttonHist = 0;
+        } else {           
+            if (buttonIsShortPressed(buttonHist)) {
+                Serial.println("Button is short pressed");
+                count++;
+                if (count >= sizeof(datum) / sizeof(datum_t)) {
+                    count = 0;
+                }
+            }            
+        }
+        // Serial.println(sizeof(datum) / sizeof(datum_t));
+        if ((int) mqttMsgJson["CO2"] != 0) {
+            dispItem(mqttMsgJson, datum[count]);
+        }
     }
 
     now = millis();
@@ -135,9 +158,9 @@ void loop() {
         lastSampleTime = now;
 
         // Read SCD41
-        uint16_t co2, co2Valid = 0;
-        float temperature, temperatureValid = 0;
-        float humidity, humidityValid = 0;
+        uint16_t co2;
+        float temperature;
+        float humidity;
         SCDerror = scd4x.readMeasurement(co2, temperature, humidity);
         if (SCDerror) {
             Serial.print("SCDError trying to execute readMeasurement(): ");
@@ -149,9 +172,6 @@ void loop() {
             mqttMsgJson["CO2"] = co2;
             mqttMsgJson["Temp"] = temperature;
             mqttMsgJson["Humi"] = humidity;
-            co2Valid = co2;
-            temperatureValid = temperature;
-            humidityValid = humidity;
         }
 
         serializeJsonPretty(mqttMsgJson, mqttMsg);
@@ -159,21 +179,21 @@ void loop() {
 
         client.publish("CO2/alexBedroom", mqttMsg);
 
-        display.clearDisplay();
-        display.setTextSize(1);
-        display.setCursor(0, 0);
-        display.print("CO2  : ");
-        display.print(co2Valid);
-        display.println(" ppm");
-        display.println();
-        display.print("Temp : ");
-        display.print(temperatureValid);
-        display.println(" C");
-        display.println();
-        display.print("Humi : ");
-        display.print(humidityValid);
-        display.println(" %");
-        display.display();
+        // display.clearDisplay();
+        // display.setTextSize(1);
+        // display.setCursor(0, 0);
+        // display.print("CO2  : ");
+        // display.print((int) mqttMsgJson["CO2"]);
+        // display.println(" PPM");
+        // display.println();
+        // display.print("TEMP : ");
+        // display.print((float) mqttMsgJson["Temp"]);
+        // display.println(" C");
+        // display.println();
+        // display.print("HUMI : ");
+        // display.print((float) mqttMsgJson["Humi"]);
+        // display.println(" %");
+        // display.display();
 
     }
 }
