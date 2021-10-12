@@ -33,7 +33,7 @@ PubSubClient client(espClient);
 uint16_t SCDerror;
 char SCDerrorMessage[256];
 
-int16_t SPSret;
+int16_t spsRet;
 
 
 DynamicJsonDocument mqttMsgJson(1024);
@@ -46,7 +46,10 @@ unsigned long lastScrolled = 0;
 datum_t datum [] = {
     {"CO2", "CO2", "PPM", 0},
     {"Temp", "TEMP", "°C", 1},
-    {"Humi", "HUMI", "%RH", 1}
+    {"Humi", "HUMI", "%RH", 1},
+    {"PM10", "PM 1.0", "ug/m3", 1},
+    {"PM25", "PM 2.5", "ug/m3", 1},
+    {"PM100", "PM 10", "ug/m3", 1}
 };
 
 // Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, OLED_MOSI_PIN, OLED_CLK_PIN, OLED_DC_PIN, OLED_RESET_PIN, OLED_CS_PIN);
@@ -82,14 +85,14 @@ void setup() {
 
     Serial.print("SPS sensor probing successful\n");
 
-    SPSret = sps30_set_fan_auto_cleaning_interval_days(SPS_AUTOCLEAN_DAYS);
-    if (SPSret) {
+    spsRet = sps30_set_fan_auto_cleaning_interval_days(SPS_AUTOCLEAN_DAYS);
+    if (spsRet) {
         Serial.print("error setting the auto-clean interval: ");
-        Serial.println(SPSret);
+        Serial.println(spsRet);
     }
 
-    SPSret = sps30_start_measurement();
-    if (SPSret < 0) {
+    spsRet = sps30_start_measurement();
+    if (spsRet < 0) {
         Serial.print("error starting measurement\n");
     }
 
@@ -209,26 +212,30 @@ void loop() {
             mqttMsgJson["Humi"] = humidity;
         }
 
+        // Read SPS30
+        struct sps30_measurement spsMeas;
+        uint16_t spsDataReady;
+        int16_t spsRet;
+        spsRet = sps30_read_data_ready(&spsDataReady);
+        if (spsRet < 0) {
+            Serial.print("error reading data-ready flag: ");
+            Serial.println(spsRet);
+        } else if (spsDataReady) {
+            spsRet = sps30_read_measurement(&spsMeas);
+            if (spsRet >= 0) {
+                mqttMsgJson["PM10"] = spsMeas.mc_1p0;
+                mqttMsgJson["PM25"] = spsMeas.mc_2p5;
+                mqttMsgJson["PM40"] = spsMeas.mc_4p0;  
+                mqttMsgJson["PM100"] = spsMeas.mc_10p0;              
+            } else {
+                Serial.println("error reading SPS measurement");
+            }
+        }   
+        
         serializeJsonPretty(mqttMsgJson, mqttMsg);
         Serial.println(mqttMsg);
 
         client.publish("CO2/alexBedroom", mqttMsg);
-
-        // display.clearDisplay();
-        // display.setTextSize(1);
-        // display.setCursor(0, 0);
-        // display.print("CO2  : ");
-        // display.print((int) mqttMsgJson["CO2"]);
-        // display.println(" PPM");
-        // display.println();
-        // display.print("TEMP : ");
-        // display.print((float) mqttMsgJson["Temp"]);
-        // display.println(" C");
-        // display.println();
-        // display.print("HUMI : ");
-        // display.print((float) mqttMsgJson["Humi"]);
-        // display.println(" %");
-        // display.display();
 
     }
 }
