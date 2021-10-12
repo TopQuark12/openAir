@@ -6,6 +6,10 @@
 #define WIFI_CONNECTION_TIMEOUT     20000
 #define SENSOR_SAMPLING_PERIOD      5000   // Must be greater than 5000
 #define BUTTON_SAMPLING_PERIOD      100
+#define IDLE_PERIOD                 15000
+#define SCROLL_PERIOD               5000
+
+#define SPS_AUTOCLEAN_DAYS          4
 
 #define SCREEN_WIDTH                128 // OLED display width, in pixels
 #define SCREEN_HEIGHT               64 // OLED display height, in pixels

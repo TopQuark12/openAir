@@ -9,6 +9,7 @@
 #include <Adafruit_SSD1306.h>
 #include <Fonts/FreeSansBold18pt7b.h>
 #include <Fonts/FreeSansBold9pt7b.h>
+#include <sps30.h>
 #include "main.h"
 #include "networking.h"
 #include "button.h"
@@ -32,10 +33,15 @@ PubSubClient client(espClient);
 uint16_t SCDerror;
 char SCDerrorMessage[256];
 
+int16_t SPSret;
+
+
 DynamicJsonDocument mqttMsgJson(1024);
 char mqttMsg[1024];
 
 unsigned long lastSampleTime = 0;
+unsigned long lastPressed = 0;
+unsigned long lastScrolled = 0;
 
 datum_t datum [] = {
     {"CO2", "CO2", "PPM", 0},
@@ -43,7 +49,8 @@ datum_t datum [] = {
     {"Humi", "HUMI", "%RH", 1}
 };
 
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, OLED_MOSI_PIN, OLED_CLK_PIN, OLED_DC_PIN, OLED_RESET_PIN, OLED_CS_PIN);
+// Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, OLED_MOSI_PIN, OLED_CLK_PIN, OLED_DC_PIN, OLED_RESET_PIN, OLED_CS_PIN);
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &SPI, OLED_DC_PIN, OLED_RESET_PIN, OLED_CS_PIN, 8000000);
 
 void setup() {
 
@@ -67,6 +74,24 @@ void setup() {
     Wire.begin(SDA_PIN, SCL_PIN);    
 
     scd4x.begin(Wire);
+    
+    while (sps30_probe() != 0) {
+        Serial.print("SPS sensor probing failed\n");
+        delay(500);
+    }
+
+    Serial.print("SPS sensor probing successful\n");
+
+    SPSret = sps30_set_fan_auto_cleaning_interval_days(SPS_AUTOCLEAN_DAYS);
+    if (SPSret) {
+        Serial.print("error setting the auto-clean interval: ");
+        Serial.println(SPSret);
+    }
+
+    SPSret = sps30_start_measurement();
+    if (SPSret < 0) {
+        Serial.print("error starting measurement\n");
+    }
 
     // stop potentially previously started measurement
     SCDerror = scd4x.stopPeriodicMeasurement();
@@ -108,6 +133,8 @@ void setup() {
     }
 
     lastSampleTime = now;
+    lastScrolled = now;
+    lastPressed = now;
 }
 
 void loop() {
@@ -137,17 +164,25 @@ void loop() {
         // Serial.println(buttonHist, BIN);
         if (buttonIsHeld(buttonHist)) {
             Serial.println("Button is held");
+            lastPressed = millis();
             buttonHist = 0;
         } else {           
             if (buttonIsShortPressed(buttonHist)) {
                 Serial.println("Button is short pressed");
+                lastPressed = millis();
                 count++;
-                if (count >= sizeof(datum) / sizeof(datum_t)) {
-                    count = 0;
-                }
             }            
         }
-        // Serial.println(sizeof(datum) / sizeof(datum_t));
+        if (millis() - lastPressed > IDLE_PERIOD) {
+            // we're idle
+            if (millis() - lastScrolled > SCROLL_PERIOD) {
+                count++;
+                lastScrolled = millis();
+            }
+        }
+        if (count >= sizeof(datum) / sizeof(datum_t)) {
+            count = 0;
+        }
         if ((int) mqttMsgJson["CO2"] != 0) {
             dispItem(mqttMsgJson, datum[count]);
         }
