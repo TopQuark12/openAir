@@ -9,23 +9,8 @@
 #include <Adafruit_SSD1306.h>
 #include <Fonts/FreeSansBold18pt7b.h>
 #include <Fonts/FreeSansBold9pt7b.h>
-#include "cred.h"
-
-#define WIFI_CONNECTION_TIMEOUT     10000
-#define SENSOR_SAMPLING_PERIOD      20000   // Must be greater than 5000
-#define BUTTON_SAMPLING_PERIOD      100
-
-#define SCREEN_WIDTH                128 // OLED display width, in pixels
-#define SCREEN_HEIGHT               64 // OLED display height, in pixels
-
-#define SDA_PIN                     21
-#define SCL_PIN                     22
-#define OLED_MOSI_PIN               23
-#define OLED_CLK_PIN                18
-#define OLED_DC_PIN                 16
-#define OLED_CS_PIN                 5
-#define OLED_RESET_PIN              17
-#define BUTTON_PIN                  4
+#include "main.h"
+#include "networking.h"
 
 #ifndef SSID
     #define SSID            "WIFI SSID HERE"
@@ -41,7 +26,6 @@ SensirionI2CScd4x scd4x;
 
 WiFiClient espClient;
 PubSubClient client(espClient);
-char macAddr [18];
 
 uint16_t SCDerror;
 char SCDerrorMessage[256];
@@ -52,84 +36,6 @@ char mqttMsg[1024];
 unsigned long lastSampleTime = 0;
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, OLED_MOSI_PIN, OLED_CLK_PIN, OLED_DC_PIN, OLED_RESET_PIN, OLED_CS_PIN);
-
-void WiFiconnect() {
-
-    display.clearDisplay();
-    display.setTextSize(1);
-    display.setCursor(0, 0);
-    display.println("Connecting to");
-    // display.setCursor(0, 8);
-    display.println(SSID);
-    display.display();
-
-    Serial.print("Connecting to ");
-    Serial.println(SSID);
-    WiFi.begin(SSID, PASSWORD);
-    unsigned long timeStart = millis();
-
-    while (WiFi.status() != WL_CONNECTED && millis() - timeStart < WIFI_CONNECTION_TIMEOUT) {
-        delay(500);
-        Serial.print(".");
-        // display.setCursor(0, 16);
-        display.print(".");
-        display.display();
-    }
-    Serial.println();
-    display.println();
-
-    if (WiFi.status() == WL_CONNECTED) {        
-        Serial.println("WiFi connected");
-        Serial.print("IP address : ");
-        Serial.println(WiFi.localIP());
-
-        display.clearDisplay();
-        display.setCursor(0, 0);
-        display.println("WiFi connected");
-        display.println("IP address : ");
-        display.println(WiFi.localIP());
-        display.display();
-    } else {
-        Serial.println("Wifi connection timeout");
-
-        display.clearDisplay();
-        display.setCursor(0, 0);
-        display.println("WiFi connection");
-        display.println("timeout");
-        display.display();
-    }
-    delay(1000);
-}
-
-void MQTTconnect() {
-    Serial.print("Attempting MQTT connection...");
-
-    display.clearDisplay();
-    display.setTextSize(1);
-    display.setCursor(0, 0);
-    display.println("Connecting to");
-    // display.setCursor(0, 8);
-    display.println("MQTT server at : ");
-    display.println(MQTT_SERVER);
-    display.display();
-
-    if (client.connect(macAddr, MQTT_USERNAME, MQTT_PASSWORD)) {
-        Serial.println("connected");
-
-        display.println();
-        display.println("Successful");
-        display.display();
-    } else {
-        display.println();
-        Serial.print("failed, rc=");
-        Serial.print(client.state());
-
-        display.print("Fail : ");
-        display.println(client.state());
-        display.display();
-    }
-    delay(1000);
-}
 
 void setup() {
 
@@ -178,32 +84,26 @@ void setup() {
     display.clearDisplay();
     display.display();
 
-    WiFiconnect();  
-
-    byte mac[6];  
-    String macStr;
-    WiFi.macAddress(mac);    
-
-    macStr.concat(String(mac[5], HEX));
-    macStr.concat(':');
-    macStr.concat(String(mac[4], HEX));
-    macStr.concat(':');
-    macStr.concat(String(mac[3], HEX));
-    macStr.concat(':');
-    macStr.concat(String(mac[2], HEX));
-    macStr.concat(':');
-    macStr.concat(String(mac[1], HEX));
-    macStr.concat(':');
-    macStr.concat(String(mac[0], HEX));
-    macStr.toCharArray(macAddr, 18);
-    Serial.print("Mac address : ");
-    Serial.println(macAddr);
-
-    client.setServer(MQTT_SERVER, 1883);
+    WiFiconnect();
     MQTTconnect();
 
-}
+    delay(2000);
 
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setCursor(0, 0);
+    display.println("Warming up sensors");
+    display.display();
+
+    unsigned long now = millis();
+    lastSampleTime = millis();
+
+    while (now - lastSampleTime < SENSOR_SAMPLING_PERIOD) {
+        now = millis();
+    }
+
+    lastSampleTime = now;
+}
 
 void loop() {
     
