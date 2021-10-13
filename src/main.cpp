@@ -53,7 +53,8 @@ datum_t datum [] = {
     {"PM10", "PM 1.0", "ug/m3", 1},
     {"PM25", "PM 2.5", "ug/m3", 1},
     {"PM100", "PM 10", "ug/m3", 1},
-    {"TVOC", "TVOC Index", " ", 0}
+    {"TVOC_index", "TVOC Index", " ", 0},
+    {"TVOC_conc", "TVOC Conc", "mg/m3", 2}
 };
 
 // Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, OLED_MOSI_PIN, OLED_CLK_PIN, OLED_DC_PIN, OLED_RESET_PIN, OLED_CS_PIN);
@@ -248,8 +249,20 @@ void loop() {
     if (millis() - lastVOCSampleTime > VOC_SENSOR_SAMPLING_PERIOD) {
         lastVOCSampleTime = millis();
         int32_t voc_index = sgp.measureVocIndex((float) mqttMsgJson["Temp"], (float) mqttMsgJson["Humi"]);
+        uint16_t rawTicks = sgp.measureRaw((float) mqttMsgJson["Temp"], (float) mqttMsgJson["Humi"]);
+        int16_t ticks = 32768 - rawTicks;
+        // memcpy(&ticks, &rawTicks, sizeof(rawTicks));
+        // Serial.print("ticks : ");
+        Serial.println(ticks);
         if (voc_index > 0)
-            mqttMsgJson["TVOC"] = voc_index;
+            mqttMsgJson["TVOC_index"] = voc_index;
+        double tvocPPM = pow (2.71828F, 7.92e-4F * ticks - 0.688F);
+        // Serial.print("tvoc PPM : ");
+        // Serial.println(tvocPPM);
+        float tvocConc = tvocPPM * 1.5;
+        // Serial.print("tvoc Conc : ");
+        // Serial.println(tvocConc);
+        mqttMsgJson["TVOC_conc"] = tvocConc;
     }
 
     if (millis() - lastCO2SampleTime > CO2_SENSOR_SAMPLING_PERIOD) {
