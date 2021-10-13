@@ -44,7 +44,7 @@ unsigned long lastVOCSampleTime = 0;
 unsigned long lastPressed = 0;
 unsigned long lastScrolled = 0;
 
-RTC_DATA_ATTR int bootCount = 0;
+RTC_DATA_ATTR uint32_t bootCount = 0;
 
 datum_t datum [] = {
     {"CO2", "CO2", "PPM", 0},
@@ -65,7 +65,9 @@ void setup() {
     Serial.begin(9600);
     Serial.println();
 
-    ++bootCount;
+    Serial.print("Boot count : ");
+    Serial.println(bootCount);
+    bootCount++;
     print_wakeup_reason();
 
     display.begin(SSD1306_SWITCHCAPVCC, 0, true, true);
@@ -111,7 +113,9 @@ void setup() {
         Serial.println(SCDerrorMessage);
     }
 
-    delay(500);
+    // delay(2000);
+
+    Serial.println("Warming up sensors");
 
     // Start Measurement
     SCDerror = scd4x.startPeriodicMeasurement();
@@ -125,26 +129,15 @@ void setup() {
         Serial.println("Sensor not found :(");
         while (1);
     }
-    Serial.println("Found SGP40");
+    restoreVoc();
+    sgp.measureRaw();
+    Serial.println("SGP sensor setup successful");
 
     lastCO2SampleTime = millis();
 
     pinMode(BUTTON_PIN, INPUT);
 
-    delay(1500);
-
-    WiFiconnect();
-    MQTTconnect();
-
-    delay(1000);
-
-    display.clearDisplay();
-    display.setTextSize(1);
-    display.setCursor(1, 1);
-    display.println("Warming up sensors");
-    display.display();
-
-    Serial.println("Warming up sensors");
+    // delay(1500);
 
     while (millis() - lastCO2SampleTime < CO2_SENSOR_SAMPLING_PERIOD) {
         delay(100);
@@ -155,7 +148,7 @@ void setup() {
         delay(500);
     }
 
-    delay(1000);
+    // delay(1000);
 
     Serial.print("SPS sensor probing successful\n");    
 
@@ -169,6 +162,8 @@ void setup() {
     if (spsRet < 0) {
         Serial.print("error starting measurement\n");
     }
+
+    Serial.print("SPS sensor setup successful\n"); 
 
     uint16_t co2;
     float temperature;
@@ -185,6 +180,8 @@ void setup() {
         mqttMsgJson["Temp"] = temperature;
         mqttMsgJson["Humi"] = humidity;
     }
+
+    Serial.print("SCD sensor setup successful\n"); 
 
     lastCO2SampleTime = millis();
     lastScrolled = millis();
@@ -253,13 +250,13 @@ void loop() {
         int16_t ticks = 32768 - rawTicks;
         // memcpy(&ticks, &rawTicks, sizeof(rawTicks));
         // Serial.print("ticks : ");
-        Serial.println(ticks);
+        // Serial.println(ticks);
         if (voc_index > 0)
             mqttMsgJson["TVOC_index"] = voc_index;
         double tvocPPM = pow (2.71828F, 7.92e-4F * ticks - 0.688F);
         // Serial.print("tvoc PPM : ");
         // Serial.println(tvocPPM);
-        float tvocConc = tvocPPM * 1.5;
+        float tvocConc = tvocPPM * 1.0;
         // Serial.print("tvoc Conc : ");
         // Serial.println(tvocConc);
         mqttMsgJson["TVOC_conc"] = tvocConc;

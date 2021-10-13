@@ -32,4 +32,5 @@ extern Adafruit_SSD1306 display;
 extern PubSubClient client;
 extern SensirionI2CScd4x scd4x;
 extern Adafruit_SGP40 sgp;
+// extern int bootCount;
 

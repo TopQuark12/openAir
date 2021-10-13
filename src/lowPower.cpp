@@ -4,6 +4,16 @@
 #include <SensirionI2CScd4x.h>
 #include "main.h"
 
+RTC_DATA_ATTR VocAlgorithmParams voc_param_backup;
+
+void restoreVoc() {
+
+    if(voc_param_backup.mUptime != 0) {
+        // memcpy(&sgp.voc_algorithm_params, &voc_param_backup, sizeof(VocAlgorithmParams));
+    }
+
+}
+
 void print_wakeup_reason() {
     esp_sleep_wakeup_cause_t wakeup_reason;
 
@@ -21,6 +31,8 @@ void print_wakeup_reason() {
 }
 
 void gotoSleep() {
+
+    memcpy(&voc_param_backup, &sgp.voc_algorithm_params, sizeof(VocAlgorithmParams));
 
     bool sgpSleep = sgp.heaterOff();
     if (sgpSleep == true)
