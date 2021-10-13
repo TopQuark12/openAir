@@ -15,6 +15,7 @@
 #include "networking.h"
 #include "button.h"
 #include "dispMeas.h"
+#include "lowPower.h"
 
 #ifndef SSID
     #define SSID            "WIFI SSID HERE"
@@ -38,9 +39,12 @@ char SCDerrorMessage[256];
 DynamicJsonDocument mqttMsgJson(1024);
 char mqttMsg[1024];
 
-unsigned long lastSampleTime = 0;
+unsigned long lastCO2SampleTime = 0;
+unsigned long lastVOCSampleTime = 0;
 unsigned long lastPressed = 0;
 unsigned long lastScrolled = 0;
+
+RTC_DATA_ATTR int bootCount = 0;
 
 datum_t datum [] = {
     {"CO2", "CO2", "PPM", 0},
@@ -60,6 +64,9 @@ void setup() {
     Serial.begin(9600);
     Serial.println();
 
+    ++bootCount;
+    print_wakeup_reason();
+
     display.begin(SSD1306_SWITCHCAPVCC, 0, true, true);
     display.clearDisplay();
     display.display(); 
@@ -77,26 +84,23 @@ void setup() {
     Wire.begin(SDA_PIN, SCL_PIN);    
 
     scd4x.begin(Wire);
-    
-    while (sps30_probe() != 0) {
-        Serial.print("SPS sensor probing failed\n");
-        delay(500);
-    }
-
-    Serial.print("SPS sensor probing successful\n");
+    if (scd4x.wakeUp())
+        Serial.println("SCD Wakeup Fail");
 
     int16_t spsRet;
 
-    spsRet = sps30_set_fan_auto_cleaning_interval_days(SPS_AUTOCLEAN_DAYS);
+    spsRet = sps30_wake_up();
     if (spsRet) {
-        Serial.print("error setting the auto-clean interval: ");
+        Serial.print("error waking SPS up: ");
         Serial.println(spsRet);
     }
 
-    spsRet = sps30_start_measurement();
-    if (spsRet < 0) {
-        Serial.print("error starting measurement\n");
+    spsRet = sps30_reset();
+    if (spsRet) {
+        Serial.print("error resetting SPS: ");
+        Serial.println(spsRet);
     }
+    
 
     // stop potentially previously started measurement
     SCDerror = scd4x.stopPeriodicMeasurement();
@@ -105,6 +109,8 @@ void setup() {
         errorToString(SCDerror, SCDerrorMessage, 256);
         Serial.println(SCDerrorMessage);
     }
+
+    delay(500);
 
     // Start Measurement
     SCDerror = scd4x.startPeriodicMeasurement();
@@ -120,11 +126,11 @@ void setup() {
     }
     Serial.println("Found SGP40");
 
-    lastSampleTime = millis();
+    lastCO2SampleTime = millis();
 
     pinMode(BUTTON_PIN, INPUT);
 
-    delay(2000);
+    delay(1500);
 
     WiFiconnect();
     MQTTconnect();
@@ -137,22 +143,57 @@ void setup() {
     display.println("Warming up sensors");
     display.display();
 
-    unsigned long now = millis();
+    Serial.println("Warming up sensors");
 
-    while (now - lastSampleTime < SENSOR_SAMPLING_PERIOD) {
-        now = millis();
+    while (millis() - lastCO2SampleTime < CO2_SENSOR_SAMPLING_PERIOD) {
+        delay(100);
     }
 
-    lastSampleTime = now;
-    lastScrolled = now;
-    lastPressed = now;
+    while (sps30_probe() != 0) {
+        Serial.print("SPS sensor probing ...\n");
+        delay(500);
+    }
+
+    delay(1000);
+
+    Serial.print("SPS sensor probing successful\n");    
+
+    spsRet = sps30_set_fan_auto_cleaning_interval_days(SPS_AUTOCLEAN_DAYS);
+    if (spsRet) {
+        Serial.print("error setting the auto-clean interval: ");
+        Serial.println(spsRet);
+    }
+
+    spsRet = sps30_start_measurement();
+    if (spsRet < 0) {
+        Serial.print("error starting measurement\n");
+    }
+
+    uint16_t co2;
+    float temperature;
+    float humidity;
+    SCDerror = scd4x.readMeasurement(co2, temperature, humidity);
+    if (SCDerror) {
+        Serial.print("SCDError trying to execute readMeasurement(): ");
+        errorToString(SCDerror, SCDerrorMessage, 256);
+        Serial.println(SCDerrorMessage);
+    } else if (co2 == 0) {
+        Serial.println("Invalid sample detected, skipping.");
+    } else {
+        mqttMsgJson["CO2"] = co2;
+        mqttMsgJson["Temp"] = temperature;
+        mqttMsgJson["Humi"] = humidity;
+    }
+
+    lastCO2SampleTime = millis();
+    lastScrolled = millis();
+    lastPressed = millis();
 }
 
 void loop() {
     
     static unsigned long long buttonHist = 0;
     static unsigned long lastButtonSampleTime = 0;
-    static unsigned long now = 0;
 
     if (WiFi.status() != WL_CONNECTED) {
         Serial.println("Reconnecting to wifi...");
@@ -165,9 +206,8 @@ void loop() {
     }
     client.loop();
 
-    now = millis();
-    if (now - lastButtonSampleTime > BUTTON_SAMPLING_PERIOD) {
-        lastButtonSampleTime = now;
+    if (millis() - lastButtonSampleTime > BUTTON_SAMPLING_PERIOD) {
+        lastButtonSampleTime = millis();
 
         static int count = 0;
 
@@ -177,6 +217,7 @@ void loop() {
             Serial.println("Button is held");
             lastPressed = millis();
             buttonHist = 0;
+            gotoSleep();
         } else {           
             if (buttonIsShortPressed(buttonHist)) {
                 Serial.println("Button is short pressed");
@@ -195,13 +236,24 @@ void loop() {
             count = 0;
         }
         if ((int) mqttMsgJson["CO2"] != 0) {
-            dispItem(mqttMsgJson, datum[count]);
+            if (millis() - lastPressed < SCREEN_OFF_DELAY_PERIOD) {
+                dispItem(mqttMsgJson, datum[count]);
+            } else {
+                display.clearDisplay();
+                display.display();
+            }
         }
     }
 
-    now = millis();
-    if (now - lastSampleTime > SENSOR_SAMPLING_PERIOD) {
-        lastSampleTime = now;
+    if (millis() - lastVOCSampleTime > VOC_SENSOR_SAMPLING_PERIOD) {
+        lastVOCSampleTime = millis();
+        int32_t voc_index = sgp.measureVocIndex((float) mqttMsgJson["Temp"], (float) mqttMsgJson["Humi"]);
+        if (voc_index > 0)
+            mqttMsgJson["TVOC"] = voc_index;
+    }
+
+    if (millis() - lastCO2SampleTime > CO2_SENSOR_SAMPLING_PERIOD) {
+        lastCO2SampleTime = millis();
 
         // Read SCD41
         uint16_t co2;
@@ -242,12 +294,10 @@ void loop() {
 
         // Read SGP40
         // uint16_t sraw = sgp.measureRaw(temperature, humidity);
-        int32_t voc_index = sgp.measureVocIndex(temperature, humidity);
-        mqttMsgJson["TVOC"] = voc_index;
         
         serializeJsonPretty(mqttMsgJson, mqttMsg);
         Serial.println(mqttMsg);
-
+        
         client.publish("CO2/alexBedroom", mqttMsg);
 
     }

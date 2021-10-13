@@ -1,13 +1,18 @@
 #pragma once
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <SensirionI2CScd4x.h>
+#include <Adafruit_SGP40.h>
 #include <PubSubClient.h>
 
 #define WIFI_CONNECTION_TIMEOUT     20000
-#define SENSOR_SAMPLING_PERIOD      5000   // Must be greater than 5000
+#define CO2_SENSOR_SAMPLING_PERIOD  5000   // Must be greater than 5000
+#define VOC_SENSOR_SAMPLING_PERIOD  1000
 #define BUTTON_SAMPLING_PERIOD      100
 #define IDLE_PERIOD                 15000
 #define SCROLL_PERIOD               5000
+#define SCREEN_OFF_DELAY_PERIOD     120000
+#define ESP_SLEEP_PERIOD            60      // s
 
 #define SPS_AUTOCLEAN_DAYS          4
 
@@ -25,4 +30,6 @@
 
 extern Adafruit_SSD1306 display;
 extern PubSubClient client;
+extern SensirionI2CScd4x scd4x;
+extern Adafruit_SGP40 sgp;
 
