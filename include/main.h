@@ -31,6 +31,8 @@
 #define VBUS_SENSE_PIN              34
 #define BOOST_EN_PIN                32
 
+#define ADC_TO_VOLTS(val)           (val / 564.0F)     
+
 extern Adafruit_SSD1306 display;
 extern PubSubClient client;
 extern SensirionI2CScd4x scd4x;

@@ -6,10 +6,47 @@
 
 RTC_DATA_ATTR VocAlgorithmParams voc_param_backup;
 
+bool isPluggedIn() {
+    if (ADC_TO_VOLTS(analogRead(VBUS_SENSE_PIN)) > 2.5) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+bool batteryOK () {
+    if (ADC_TO_VOLTS(analogRead(BATT_SENSE_PIN)) > 3.2) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
 void restoreVoc() {
 
     if(voc_param_backup.mUptime != 0) {
-        // memcpy(&sgp.voc_algorithm_params, &voc_param_backup, sizeof(VocAlgorithmParams));
+        Serial.println("Restoring SGP...");
+        memcpy(&sgp.voc_algorithm_params, &voc_param_backup, sizeof(VocAlgorithmParams));
+    } else {
+        Serial.println("Warming up SGP...");
+        delay(5000);
+
+        uint16_t co2;
+        float temperature;
+        float humidity;
+        uint16_t SCDerror = scd4x.readMeasurement(co2, temperature, humidity);
+        if (SCDerror) {
+            Serial.print("SCDError trying to execute readMeasurement(): ");
+        } else if (co2 == 0) {
+            Serial.println("Invalid sample detected, skipping.");
+        } else {
+            for (int i = 0; i < 46; i++) {
+                sgp.measureVocIndex(temperature, humidity);
+                Serial.print('.');
+                delay(1000);
+            }
+            Serial.println();
+        }
     }
 
 }
@@ -32,7 +69,9 @@ void print_wakeup_reason() {
 
 void gotoSleep() {
 
-    memcpy(&voc_param_backup, &sgp.voc_algorithm_params, sizeof(VocAlgorithmParams));
+    if (sgp.voc_algorithm_params.mUptime > 0) {
+        memcpy(&voc_param_backup, &sgp.voc_algorithm_params, sizeof(VocAlgorithmParams));
+    }
 
     bool sgpSleep = sgp.heaterOff();
     if (sgpSleep == true)

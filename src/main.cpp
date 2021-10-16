@@ -65,6 +65,7 @@ void setup() {
     Serial.begin(9600);
     Serial.println();
 
+
     pinMode(BOOST_EN_PIN, OUTPUT);
     digitalWrite(BOOST_EN_PIN, HIGH);
 
@@ -134,13 +135,19 @@ void setup() {
         Serial.println(SCDerrorMessage);
     }
 
-    if (! sgp.begin()){
-        Serial.println("Sensor not found :(");
-        while (1);
+    if (isPluggedIn()) {
+        if (! sgp.begin()){
+            Serial.println("Sensor not found :(");
+            while (1);
+        }
+        restoreVoc();
+        sgp.measureRaw();
+        Serial.println("SGP sensor setup successful");
+    } else {
+        Serial.println("On battery power, skipping SGP");
+        sgp.begin();
+        sgp.heaterOff();
     }
-    restoreVoc();
-    sgp.measureRaw();
-    Serial.println("SGP sensor setup successful");
 
     lastCO2SampleTime = millis();
 
@@ -157,15 +164,7 @@ void setup() {
         delay(500);
     }
 
-    // delay(1000);
-
     Serial.print("SPS sensor probing successful\n");    
-
-    spsRet = sps30_set_fan_auto_cleaning_interval_days(SPS_AUTOCLEAN_DAYS);
-    if (spsRet) {
-        Serial.print("error setting the auto-clean interval: ");
-        Serial.println(spsRet);
-    }
 
     spsRet = sps30_start_measurement();
     if (spsRet < 0) {
@@ -254,21 +253,19 @@ void loop() {
 
     if (millis() - lastVOCSampleTime > VOC_SENSOR_SAMPLING_PERIOD) {
         lastVOCSampleTime = millis();
-        // int32_t voc_index = sgp.measureVocIndex((float) mqttMsgJson["Temp"], (float) mqttMsgJson["Humi"]);
-        uint16_t rawTicks = sgp.measureRaw((float) mqttMsgJson["Temp"], (float) mqttMsgJson["Humi"]);
-        int16_t ticks = 32768 - rawTicks;
-        // memcpy(&ticks, &rawTicks, sizeof(rawTicks));
-        // Serial.print("ticks : ");
-        // Serial.println(ticks);
-        // if (voc_index > 0)
-        //     mqttMsgJson["TVOC_index"] = voc_index;
-        double tvocPPM = pow (2.71828F, 7.92e-4F * ticks - 0.688F);
-        // Serial.print("tvoc PPM : ");
-        // Serial.println(tvocPPM);
-        float tvocConc = tvocPPM * 1.0;
-        // Serial.print("tvoc Conc : ");
-        // Serial.println(tvocConc);
-        mqttMsgJson["TVOC_conc"] = tvocConc;
+        if (isPluggedIn()){
+            int32_t voc_index = sgp.measureVocIndex((float) mqttMsgJson["Temp"], (float) mqttMsgJson["Humi"]);
+            uint16_t rawTicks = sgp.measureRaw((float) mqttMsgJson["Temp"], (float) mqttMsgJson["Humi"]);
+            int16_t ticks = 32768 - rawTicks;
+            if (voc_index > 0)
+                mqttMsgJson["TVOC_index"] = voc_index;
+            double tvocPPM = pow (2.71828F, 7.92e-4F * ticks - 0.688F);
+            float tvocConc = tvocPPM * 1.0;
+            mqttMsgJson["TVOC_conc"] = tvocConc;
+        } else {
+            mqttMsgJson["TVOC_index"] = -1;
+            mqttMsgJson["TVOC_conc"] = -1;
+        }
     }
 
     if (millis() - lastCO2SampleTime > CO2_SENSOR_SAMPLING_PERIOD) {
@@ -310,15 +307,16 @@ void loop() {
                 Serial.println("error reading SPS measurement");
             }
         }   
-
-        // Read SGP40
-        // uint16_t sraw = sgp.measureRaw(temperature, humidity);
         
         serializeJsonPretty(mqttMsgJson, mqttMsg);
         Serial.println(mqttMsg);
         
         client.publish("CO2/alexBedroom", mqttMsg);
-        // gotoSleep();
-
+        if (!isPluggedIn()) {
+            if (lastPressed > 0 && millis() - lastPressed > IDLE_PERIOD) {
+                // we're idle
+                gotoSleep();
+            }            
+        }
     }
 }
