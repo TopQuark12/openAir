@@ -27,6 +27,9 @@
 #define OLED_CS_PIN                 5
 #define OLED_RESET_PIN              17
 #define BUTTON_PIN                  4
+#define BATT_SENSE_PIN              35
+#define VBUS_SENSE_PIN              34
+#define BOOST_EN_PIN                32
 
 extern Adafruit_SSD1306 display;
 extern PubSubClient client;

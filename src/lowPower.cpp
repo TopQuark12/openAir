@@ -56,6 +56,8 @@ void gotoSleep() {
     else
         Serial.println("SPS Sleep Success");
 
+    digitalWrite(BOOST_EN_PIN, LOW);
+
     display.clearDisplay();
     display.display();
 

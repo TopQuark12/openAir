@@ -65,6 +65,9 @@ void setup() {
     Serial.begin(9600);
     Serial.println();
 
+    pinMode(BOOST_EN_PIN, OUTPUT);
+    digitalWrite(BOOST_EN_PIN, HIGH);
+
     Serial.print("Boot count : ");
     Serial.println(bootCount);
     bootCount++;
@@ -99,6 +102,12 @@ void setup() {
     }
 
     spsRet = sps30_reset();
+    if (spsRet) {
+        Serial.print("error resetting SPS: ");
+        Serial.println(spsRet);
+    }
+
+    spsRet = sps30_set_fan_auto_cleaning_interval(0);
     if (spsRet) {
         Serial.print("error resetting SPS: ");
         Serial.println(spsRet);
@@ -245,14 +254,14 @@ void loop() {
 
     if (millis() - lastVOCSampleTime > VOC_SENSOR_SAMPLING_PERIOD) {
         lastVOCSampleTime = millis();
-        int32_t voc_index = sgp.measureVocIndex((float) mqttMsgJson["Temp"], (float) mqttMsgJson["Humi"]);
+        // int32_t voc_index = sgp.measureVocIndex((float) mqttMsgJson["Temp"], (float) mqttMsgJson["Humi"]);
         uint16_t rawTicks = sgp.measureRaw((float) mqttMsgJson["Temp"], (float) mqttMsgJson["Humi"]);
         int16_t ticks = 32768 - rawTicks;
         // memcpy(&ticks, &rawTicks, sizeof(rawTicks));
         // Serial.print("ticks : ");
         // Serial.println(ticks);
-        if (voc_index > 0)
-            mqttMsgJson["TVOC_index"] = voc_index;
+        // if (voc_index > 0)
+        //     mqttMsgJson["TVOC_index"] = voc_index;
         double tvocPPM = pow (2.71828F, 7.92e-4F * ticks - 0.688F);
         // Serial.print("tvoc PPM : ");
         // Serial.println(tvocPPM);
@@ -309,6 +318,7 @@ void loop() {
         Serial.println(mqttMsg);
         
         client.publish("CO2/alexBedroom", mqttMsg);
+        // gotoSleep();
 
     }
 }
