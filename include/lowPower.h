@@ -1,7 +1,7 @@
 #pragma once
 
 void restoreVoc();
-void print_wakeup_reason();
+esp_sleep_wakeup_cause_t print_wakeup_reason();
 void gotoSleep();
 bool isPluggedIn();
 

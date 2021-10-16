@@ -30,6 +30,7 @@
 #define BATT_SENSE_PIN              35
 #define VBUS_SENSE_PIN              34
 #define BOOST_EN_PIN                32
+#define GPIO_WAKEUP_SRC             0x400000010              
 
 #define ADC_TO_VOLTS(val)           (val / 564.0F)     
 

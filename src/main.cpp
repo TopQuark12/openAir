@@ -44,6 +44,8 @@ unsigned long lastVOCSampleTime = 0;
 unsigned long lastPressed = 0;
 unsigned long lastScrolled = 0;
 
+esp_sleep_wakeup_cause_t wakeupReason;
+
 RTC_DATA_ATTR uint32_t bootCount = 0;
 
 datum_t datum [] = {
@@ -72,7 +74,7 @@ void setup() {
     Serial.print("Boot count : ");
     Serial.println(bootCount);
     bootCount++;
-    print_wakeup_reason();
+    wakeupReason = print_wakeup_reason();
 
     display.begin(SSD1306_SWITCHCAPVCC, 0, true, true);
     display.clearDisplay();
@@ -137,8 +139,7 @@ void setup() {
 
     if (isPluggedIn()) {
         if (! sgp.begin()){
-            Serial.println("Sensor not found :(");
-            while (1);
+            Serial.println("SGP sensor not found :(");
         }
         restoreVoc();
         sgp.measureRaw();
@@ -193,7 +194,8 @@ void setup() {
 
     lastCO2SampleTime = millis();
     lastScrolled = millis();
-    lastPressed = millis();
+    if (isPluggedIn() || wakeupReason == ESP_SLEEP_WAKEUP_EXT1)
+        lastPressed = millis();
 }
 
 void loop() {
@@ -238,7 +240,8 @@ void loop() {
                 lastScrolled = millis();
             }
         }
-        if (count >= sizeof(datum) / sizeof(datum_t)) {
+        int menuLen = isPluggedIn() ? sizeof(datum) / sizeof(datum_t) : sizeof(datum) / sizeof(datum_t) - 2;
+        if (count >= menuLen) {
             count = 0;
         }
         if ((int) mqttMsgJson["CO2"] != 0) {
@@ -313,7 +316,7 @@ void loop() {
         
         client.publish("CO2/alexBedroom", mqttMsg);
         if (!isPluggedIn()) {
-            if (lastPressed > 0 && millis() - lastPressed > IDLE_PERIOD) {
+            if (lastPressed == 0 || millis() - lastPressed > IDLE_PERIOD) {
                 // we're idle
                 gotoSleep();
             }            

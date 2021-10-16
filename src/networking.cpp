@@ -65,13 +65,39 @@ void WiFiconnect() {
         display.println(WiFi.localIP());
         display.display();
     } else {
-        Serial.println("Wifi connection timeout");
-
+        Serial.println("Wifi 1 connection timeout");
         display.clearDisplay();
         display.setCursor(0, 0);
-        display.println("WiFi connection");
+        display.println("WiFi connection 1");
         display.println("timeout");
+
+        display.println("Connecting to");
+        // display.setCursor(0, 8);
+        display.println(SSID2);
         display.display();
+
+        Serial.print("Connecting to ");
+        Serial.println(SSID2);
+        WiFi.begin(SSID2, PASSWORD2);
+        unsigned long timeStart = millis();
+
+        while (WiFi.status() != WL_CONNECTED && millis() - timeStart < WIFI_CONNECTION_TIMEOUT) {
+            delay(500);
+            Serial.print(".");
+            // display.setCursor(0, 16);
+            display.print(".");
+            display.display();
+        }
+        Serial.println();
+        display.println();
+
+        if (WiFi.status() != WL_CONNECTED) {
+            Serial.println("Wifi 2 connection timeout");
+            display.clearDisplay();
+            display.setCursor(0, 0);
+            display.println("WiFi connection 2");
+            display.println("timeout");
+        }        
     }
     delay(1000);
 }

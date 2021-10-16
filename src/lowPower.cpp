@@ -51,7 +51,7 @@ void restoreVoc() {
 
 }
 
-void print_wakeup_reason() {
+esp_sleep_wakeup_cause_t print_wakeup_reason() {
     esp_sleep_wakeup_cause_t wakeup_reason;
 
     wakeup_reason = esp_sleep_get_wakeup_cause();
@@ -65,6 +65,8 @@ void print_wakeup_reason() {
         case ESP_SLEEP_WAKEUP_ULP : Serial.println("Wakeup caused by ULP program"); break;
         default : Serial.printf("Wakeup was not caused by deep sleep: %d\n",wakeup_reason); break;
     }
+
+    return wakeup_reason;
 }
 
 void gotoSleep() {
@@ -103,6 +105,7 @@ void gotoSleep() {
     Serial.println("ESP Deep Sleep");
 
     esp_sleep_enable_timer_wakeup(ESP_SLEEP_PERIOD * 1000000);
+    esp_sleep_enable_ext1_wakeup(GPIO_WAKEUP_SRC, ESP_EXT1_WAKEUP_ANY_HIGH);
     esp_deep_sleep_start();
 
 }
