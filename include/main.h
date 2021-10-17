@@ -8,10 +8,10 @@
 #define WIFI_CONNECTION_TIMEOUT     20000
 #define CO2_SENSOR_SAMPLING_PERIOD  5000   // Must be greater than 5000
 #define VOC_SENSOR_SAMPLING_PERIOD  1000
-#define BUTTON_SAMPLING_PERIOD      100
+#define BUTTON_SAMPLING_PERIOD      50
 #define IDLE_PERIOD                 15000
 #define SCROLL_PERIOD               5000
-#define SCREEN_OFF_DELAY_PERIOD     120000
+#define SCREEN_OFF_DELAY_PERIOD     900000
 #define ESP_SLEEP_PERIOD            60      // s
 
 #define SPS_AUTOCLEAN_DAYS          4
@@ -30,7 +30,9 @@
 #define BATT_SENSE_PIN              35
 #define VBUS_SENSE_PIN              34
 #define BOOST_EN_PIN                32
-#define GPIO_WAKEUP_SRC             0x400000010              
+#define LED_PIN                     19
+#define GPIO_WAKEUP_SRC_BATT        0x400000010    
+#define GPIO_WAKEUP_SRC_PLUGGED     0x10
 
 #define ADC_TO_VOLTS(val)           (val / 564.0F)     
 

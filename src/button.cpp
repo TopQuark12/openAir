@@ -9,7 +9,7 @@ int buttonIsShortPressed(unsigned long long buttonHist) {
 }
 
 int buttonIsHeld(unsigned long long buttonHist) {
-    if ((buttonHist & 0xFFFFFFFF) == 0xFFFFFFFF) {    // 32 cycles
+    if ((buttonHist & 0xFFFFFFFFF) == 0xFFFFFFFFF) {    // 64 cycles
         return true;
     } else {
         return false;

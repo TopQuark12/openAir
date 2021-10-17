@@ -40,12 +40,12 @@ void restoreVoc() {
         } else if (co2 == 0) {
             Serial.println("Invalid sample detected, skipping.");
         } else {
-            for (int i = 0; i < 46; i++) {
-                sgp.measureVocIndex(temperature, humidity);
-                Serial.print('.');
-                delay(1000);
-            }
-            Serial.println();
+            // for (int i = 0; i < 46; i++) {
+            //     sgp.measureVocIndex(temperature, humidity);
+            //     Serial.print('.');
+            //     delay(1000);
+            // }
+            // Serial.println();
         }
     }
 
@@ -105,7 +105,11 @@ void gotoSleep() {
     Serial.println("ESP Deep Sleep");
 
     esp_sleep_enable_timer_wakeup(ESP_SLEEP_PERIOD * 1000000);
-    esp_sleep_enable_ext1_wakeup(GPIO_WAKEUP_SRC, ESP_EXT1_WAKEUP_ANY_HIGH);
+    if (isPluggedIn())
+        esp_sleep_enable_ext1_wakeup(GPIO_WAKEUP_SRC_PLUGGED, ESP_EXT1_WAKEUP_ANY_HIGH);
+    else 
+        esp_sleep_enable_ext1_wakeup(GPIO_WAKEUP_SRC_BATT, ESP_EXT1_WAKEUP_ANY_HIGH);
+    digitalWrite(LED_PIN, LOW);
     esp_deep_sleep_start();
 
 }

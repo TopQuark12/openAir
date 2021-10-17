@@ -41,8 +41,9 @@ char mqttMsg[1024];
 
 unsigned long lastCO2SampleTime = 0;
 unsigned long lastVOCSampleTime = 0;
-unsigned long lastPressed = 0;
+unsigned long volatile lastPressed = 0;
 unsigned long lastScrolled = 0;
+volatile int buttonPressed = 0;
 
 esp_sleep_wakeup_cause_t wakeupReason;
 
@@ -59,14 +60,28 @@ datum_t datum [] = {
     {"TVOC_conc", "TVOC Conc", "mg/m3", 2}
 };
 
-// Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, OLED_MOSI_PIN, OLED_CLK_PIN, OLED_DC_PIN, OLED_RESET_PIN, OLED_CS_PIN);
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &SPI, OLED_DC_PIN, OLED_RESET_PIN, OLED_CS_PIN, 8000000);
 
+void IRAM_ATTR buttonInterrupt () {
+    buttonPressed = 1;
+    lastPressed = millis();
+}
+
 void setup() {
+
+    float battVolt = ADC_TO_VOLTS(analogRead(BATT_SENSE_PIN));
+
+    pinMode(BUTTON_PIN, INPUT);
+    attachInterrupt(BUTTON_PIN, buttonInterrupt, RISING);
+
+    pinMode(LED_PIN, OUTPUT);
+    digitalWrite(LED_PIN, HIGH);
 
     Serial.begin(9600);
     Serial.println();
 
+    Serial.print("Battery Voltage : ");
+    Serial.println(battVolt);
 
     pinMode(BOOST_EN_PIN, OUTPUT);
     digitalWrite(BOOST_EN_PIN, HIGH);
@@ -81,11 +96,10 @@ void setup() {
     display.display(); 
 
     display.setFont(&FreeSansBold18pt7b);
-    // display.setTextSize(3); // Draw 2X-scale text
     display.setTextColor(SSD1306_WHITE);
-    display.setCursor(28, 25);
+    display.setCursor(28, 28);
     display.println("pico");
-    display.setCursor(37, 55);
+    display.setCursor(37, 58);
     display.println("AIR");
     display.display();      // Show initial text
     display.setFont();
@@ -152,10 +166,6 @@ void setup() {
 
     lastCO2SampleTime = millis();
 
-    pinMode(BUTTON_PIN, INPUT);
-
-    // delay(1500);
-
     while (millis() - lastCO2SampleTime < CO2_SENSOR_SAMPLING_PERIOD) {
         delay(100);
     }
@@ -194,7 +204,8 @@ void setup() {
 
     lastCO2SampleTime = millis();
     lastScrolled = millis();
-    if (isPluggedIn() || wakeupReason == ESP_SLEEP_WAKEUP_EXT1)
+    // detachInterrupt(BUTTON_PIN);
+    if (isPluggedIn() || wakeupReason == ESP_SLEEP_WAKEUP_EXT1 || buttonPressed)
         lastPressed = millis();
 }
 
@@ -219,12 +230,28 @@ void loop() {
 
         static int count = 0;
 
-        buttonHist = buttonHist << 1 | (digitalRead(BUTTON_PIN) & 0x1);
+        if (buttonPressed) {
+            buttonHist = buttonHist << 1 | 1;
+            buttonPressed = 0;
+        } else {
+            // Serial.print(digitalRead(BUTTON_PIN) & 0x1);
+            buttonHist = buttonHist << 1 | (digitalRead(BUTTON_PIN) & 0x1);
+        }
         // Serial.println(buttonHist, BIN);
         if (buttonIsHeld(buttonHist)) {
             Serial.println("Button is held");
             lastPressed = millis();
             buttonHist = 0;
+            while(digitalRead(BUTTON_PIN) == HIGH) {
+                display.clearDisplay();
+                display.setFont();
+                display.setTextSize(1);
+                display.setCursor(0, 0);
+                display.println("Going to sleep");
+                display.display();
+                delay(1000);
+            }
+            delay(1000);
             gotoSleep();
         } else {           
             if (buttonIsShortPressed(buttonHist)) {
@@ -315,7 +342,7 @@ void loop() {
         Serial.println(mqttMsg);
         
         client.publish("CO2/alexBedroom", mqttMsg);
-        if (!isPluggedIn()) {
+        if ((!isPluggedIn()) && buttonPressed == 0) {
             if (lastPressed == 0 || millis() - lastPressed > IDLE_PERIOD) {
                 // we're idle
                 gotoSleep();

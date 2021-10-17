@@ -4,6 +4,7 @@
 #include "main.h"
 
 char macAddr [18];
+RTC_DATA_ATTR int lastSuccessfulWifiIndex = 0;
 
 void getMacAddr() {
 
@@ -29,78 +30,103 @@ void getMacAddr() {
 }
 
 void WiFiconnect() {
-
-    display.clearDisplay();
-    display.setTextSize(1);
-    display.setCursor(0, 0);
-    display.println("Connecting to");
-    // display.setCursor(0, 8);
-    display.println(SSID);
-    display.display();
-
-    Serial.print("Connecting to ");
-    Serial.println(SSID);
-    WiFi.begin(SSID, PASSWORD);
-    unsigned long timeStart = millis();
-
-    while (WiFi.status() != WL_CONNECTED && millis() - timeStart < WIFI_CONNECTION_TIMEOUT) {
-        delay(500);
-        Serial.print(".");
-        // display.setCursor(0, 16);
-        display.print(".");
-        display.display();
-    }
-    Serial.println();
-    display.println();
-
-    if (WiFi.status() == WL_CONNECTED) {        
-        Serial.println("WiFi connected");
-        Serial.print("IP address : ");
-        Serial.println(WiFi.localIP());
-
-        display.clearDisplay();
-        display.setCursor(0, 0);
-        display.println("WiFi connected");
-        display.println("IP address : ");
-        display.println(WiFi.localIP());
-        display.display();
-    } else {
-        Serial.println("Wifi 1 connection timeout");
-        display.clearDisplay();
-        display.setCursor(0, 0);
-        display.println("WiFi connection 1");
-        display.println("timeout");
-
-        display.println("Connecting to");
-        // display.setCursor(0, 8);
-        display.println(SSID2);
-        display.display();
-
-        Serial.print("Connecting to ");
-        Serial.println(SSID2);
-        WiFi.begin(SSID2, PASSWORD2);
-        unsigned long timeStart = millis();
-
-        while (WiFi.status() != WL_CONNECTED && millis() - timeStart < WIFI_CONNECTION_TIMEOUT) {
-            delay(500);
-            Serial.print(".");
-            // display.setCursor(0, 16);
-            display.print(".");
-            display.display();
-        }
-        Serial.println();
-        display.println();
-
-        if (WiFi.status() != WL_CONNECTED) {
-            Serial.println("Wifi 2 connection timeout");
+    
+    int numConnections = sizeof(wifiCredentials) / sizeof(wifiCredentials[0]);
+    for (int i = 0; i < numConnections; i++) {
+        if (WiFi.status() == WL_CONNECTED) {
+            break;
+        } else {
             display.clearDisplay();
+            display.setFont();
+            display.setTextSize(1);
             display.setCursor(0, 0);
-            display.println("WiFi connection 2");
-            display.println("timeout");
-        }        
+            display.println("Connecting to");
+            // display.setCursor(0, 8);
+            display.println(wifiCredentials[(i + lastSuccessfulWifiIndex) % numConnections][0]);
+            display.display();
+
+            Serial.print("Connecting to ");
+            Serial.println(wifiCredentials[(i + lastSuccessfulWifiIndex) % numConnections][0]);
+            WiFi.begin( wifiCredentials[(i + lastSuccessfulWifiIndex) % numConnections][0], 
+                        wifiCredentials[(i + lastSuccessfulWifiIndex) % numConnections][1]);
+            unsigned long timeStart = millis();
+            while (WiFi.status() != WL_CONNECTED && millis() - timeStart < WIFI_CONNECTION_TIMEOUT) {
+                delay(500);
+                Serial.print(".");
+                display.print(".");
+                display.display();
+            }
+            Serial.println();
+            display.println();
+            if (WiFi.status() == WL_CONNECTED) {   
+                lastSuccessfulWifiIndex = (i + lastSuccessfulWifiIndex) % numConnections;     
+                Serial.println("WiFi connected");
+                Serial.print("IP address : ");
+                Serial.println(WiFi.localIP());
+
+                display.clearDisplay();
+                display.setCursor(0, 0);
+                display.println("WiFi connected");
+                display.println("IP address : ");
+                display.println(WiFi.localIP());
+                display.display();
+            } else {
+                Serial.println("Wifi connection timeout");
+                display.clearDisplay();
+                display.setCursor(0, 0);
+                display.println("WiFi connection");
+                display.println("timeout");
+            }
+        }
     }
     delay(1000);
 }
+
+// void WiFiconnect(const char *ssid, const char *passphrase) {
+
+//     display.clearDisplay();
+//     display.setTextSize(1);
+//     display.setCursor(0, 0);
+//     display.println("Connecting to");
+//     // display.setCursor(0, 8);
+//     display.println(ssid);
+//     display.display();
+
+//     Serial.print("Connecting to ");
+//     Serial.println(ssid);
+//     WiFi.begin(ssid, passphrase);
+//     unsigned long timeStart = millis();
+
+//     while (WiFi.status() != WL_CONNECTED && millis() - timeStart < WIFI_CONNECTION_TIMEOUT) {
+//         delay(500);
+//         Serial.print(".");
+//         // display.setCursor(0, 16);
+//         display.print(".");
+//         display.display();
+//     }
+//     Serial.println();
+//     display.println();
+
+//     if (WiFi.status() == WL_CONNECTED) {        
+//         Serial.println("WiFi connected");
+//         Serial.print("IP address : ");
+//         Serial.println(WiFi.localIP());
+
+//         display.clearDisplay();
+//         display.setCursor(0, 0);
+//         display.println("WiFi connected");
+//         display.println("IP address : ");
+//         display.println(WiFi.localIP());
+//         display.display();
+//     } else {
+//         Serial.println("Wifi connection timeout");
+//         display.clearDisplay();
+//         display.setCursor(0, 0);
+//         display.println("WiFi connection");
+//         display.println("timeout");
+//     }
+//     delay(1000);
+// }
 
 void MQTTconnect() {
 
@@ -109,6 +135,7 @@ void MQTTconnect() {
     Serial.print("Attempting MQTT connection...");
 
     display.clearDisplay();
+    display.setFont();
     display.setTextSize(1);
     display.setCursor(0, 0);
     display.println("Connecting to");
