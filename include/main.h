@@ -11,7 +11,7 @@
 #define BUTTON_SAMPLING_PERIOD      50
 #define IDLE_PERIOD                 15000
 #define SCROLL_PERIOD               5000
-#define SCREEN_OFF_DELAY_PERIOD     900000
+#define SCREEN_OFF_DELAY_PERIOD     90000
 #define ESP_SLEEP_PERIOD            60      // s
 
 #define SPS_AUTOCLEAN_DAYS          4

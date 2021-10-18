@@ -2,5 +2,5 @@
 
 void WiFiconnect();
 void MQTTconnect();
-void getMacAddr();
+String getMacAddr();
 

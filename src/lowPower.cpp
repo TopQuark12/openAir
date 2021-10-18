@@ -113,3 +113,41 @@ void gotoSleep() {
     esp_deep_sleep_start();
 
 }
+
+void shutDown() {
+    bool sgpSleep = sgp.heaterOff();
+    if (sgpSleep == true)
+        Serial.println("SGP Sleep Success");
+    else
+        Serial.println("SGP Sleep Fail");
+
+    scd4x.stopPeriodicMeasurement();
+    delay(500);
+    int scdSleep = scd4x.powerDown();
+    if (scdSleep)
+        Serial.println("SCD Sleep Fail");
+    else
+        Serial.println("SCD Sleep Success");
+
+    int spsSleep = 0;
+    spsSleep = spsSleep | sps30_stop_measurement();
+    spsSleep = spsSleep | sps30_sleep();
+    if (spsSleep)
+        Serial.println("SPS Sleep Fail");
+    else
+        Serial.println("SPS Sleep Success");
+
+    digitalWrite(BOOST_EN_PIN, LOW);
+
+    display.clearDisplay();
+    display.display();
+
+    Serial.println("ESP Shut Down");
+
+    if (isPluggedIn())
+        esp_sleep_enable_ext1_wakeup(GPIO_WAKEUP_SRC_PLUGGED, ESP_EXT1_WAKEUP_ANY_HIGH);
+    else 
+        esp_sleep_enable_ext1_wakeup(GPIO_WAKEUP_SRC_BATT, ESP_EXT1_WAKEUP_ANY_HIGH);
+    digitalWrite(LED_PIN, LOW);
+    esp_deep_sleep_start();
+}

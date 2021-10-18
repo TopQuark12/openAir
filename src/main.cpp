@@ -214,6 +214,18 @@ void loop() {
     static unsigned long long buttonHist = 0;
     static unsigned long lastButtonSampleTime = 0;
 
+    if ((!batteryOK()) && (!isPluggedIn())) {
+        Serial.println("LOW BATTERY, SHUTTING OFF");
+        display.clearDisplay();
+        display.setFont();
+        display.setTextSize(1);
+        display.setCursor(0, 0);
+        display.println("BATTERY LOW");
+        display.println("SHUTTING DOWN");
+        display.display();
+        shutDown();
+    }
+
     if (WiFi.status() != WL_CONNECTED) {
         Serial.println("Reconnecting to wifi...");
         WiFiconnect();
@@ -247,12 +259,12 @@ void loop() {
                 display.setFont();
                 display.setTextSize(1);
                 display.setCursor(0, 0);
-                display.println("Going to sleep");
+                display.println("Shuting Down ...");
                 display.display();
                 delay(1000);
             }
             delay(1000);
-            gotoSleep();
+            shutDown();
         } else {           
             if (buttonIsShortPressed(buttonHist)) {
                 Serial.println("Button is short pressed");
@@ -337,11 +349,14 @@ void loop() {
                 Serial.println("error reading SPS measurement");
             }
         }   
+
+        mqttMsgJson["MAC"] = getMacAddr();
         
         serializeJsonPretty(mqttMsgJson, mqttMsg);
         Serial.println(mqttMsg);
         
-        client.publish("CO2/alexBedroom", mqttMsg);
+        
+        client.publish("CO2/picoAir", mqttMsg);
         if ((!isPluggedIn()) && buttonPressed == 0) {
             if (lastPressed == 0 || millis() - lastPressed > IDLE_PERIOD) {
                 // we're idle

@@ -6,7 +6,7 @@
 char macAddr [18];
 RTC_DATA_ATTR int lastSuccessfulWifiIndex = 0;
 
-void getMacAddr() {
+String getMacAddr() {
 
     byte mac[6];  
     String macStr;
@@ -24,8 +24,9 @@ void getMacAddr() {
     macStr.concat(':');
     macStr.concat(String(mac[0], HEX));
     macStr.toCharArray(macAddr, 18);
-    Serial.print("Mac address : ");
-    Serial.println(macAddr);
+    return macStr;
+    // Serial.print("Mac address : ");
+    // Serial.println(macAddr);
 
 }
 
@@ -81,52 +82,6 @@ void WiFiconnect() {
     }
     delay(1000);
 }
-
-// void WiFiconnect(const char *ssid, const char *passphrase) {
-
-//     display.clearDisplay();
-//     display.setTextSize(1);
-//     display.setCursor(0, 0);
-//     display.println("Connecting to");
-//     // display.setCursor(0, 8);
-//     display.println(ssid);
-//     display.display();
-
-//     Serial.print("Connecting to ");
-//     Serial.println(ssid);
-//     WiFi.begin(ssid, passphrase);
-//     unsigned long timeStart = millis();
-
-//     while (WiFi.status() != WL_CONNECTED && millis() - timeStart < WIFI_CONNECTION_TIMEOUT) {
-//         delay(500);
-//         Serial.print(".");
-//         // display.setCursor(0, 16);
-//         display.print(".");
-//         display.display();
-//     }
-//     Serial.println();
-//     display.println();
-
-//     if (WiFi.status() == WL_CONNECTED) {        
-//         Serial.println("WiFi connected");
-//         Serial.print("IP address : ");
-//         Serial.println(WiFi.localIP());
-
-//         display.clearDisplay();
-//         display.setCursor(0, 0);
-//         display.println("WiFi connected");
-//         display.println("IP address : ");
-//         display.println(WiFi.localIP());
-//         display.display();
-//     } else {
-//         Serial.println("Wifi connection timeout");
-//         display.clearDisplay();
-//         display.setCursor(0, 0);
-//         display.println("WiFi connection");
-//         display.println("timeout");
-//     }
-//     delay(1000);
-// }
 
 void MQTTconnect() {
 
