@@ -351,6 +351,7 @@ void loop() {
         }   
 
         mqttMsgJson["MAC"] = getMacAddr();
+        mqttMsgJson["VBAT"] = ADC_TO_VOLTS(analogRead(BATT_SENSE_PIN));
         
         serializeJsonPretty(mqttMsgJson, mqttMsg);
         Serial.println(mqttMsg);

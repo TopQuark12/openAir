@@ -26,7 +26,7 @@ void restoreVoc() {
 
     if(voc_param_backup.mUptime != 0) {
         Serial.println("Restoring SGP...");
-        memcpy(&sgp.voc_algorithm_params, &voc_param_backup, sizeof(VocAlgorithmParams));
+        // memcpy(&sgp.voc_algorithm_params, &voc_param_backup, sizeof(VocAlgorithmParams));
     } else {
         Serial.println("Warming up SGP...");
         delay(5000);
@@ -71,9 +71,9 @@ esp_sleep_wakeup_cause_t print_wakeup_reason() {
 
 void gotoSleep() {
 
-    if (sgp.voc_algorithm_params.mUptime > 0) {
-        memcpy(&voc_param_backup, &sgp.voc_algorithm_params, sizeof(VocAlgorithmParams));
-    }
+    // if (sgp.voc_algorithm_params.mUptime > 0) {
+    //     memcpy(&voc_param_backup, &sgp.voc_algorithm_params, sizeof(VocAlgorithmParams));
+    // }
 
     bool sgpSleep = sgp.heaterOff();
     if (sgpSleep == true)
